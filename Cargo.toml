@@ -1,0 +1,11 @@
+[package]
+name = "chip-8"
+version = "0.1.0"
+authors = ["crowlkats"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.3"
+winit = "0.22.2"
+pixels = "0.0.4"
+clap = "3.0.0-beta.1"
