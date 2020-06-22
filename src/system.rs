@@ -100,7 +100,6 @@ impl System {
                 .build(&event_loop)
                 .unwrap()
         };
-        let mut hidpi_factor = window.scale_factor();
         let mut pixels = {
             let surface = Surface::create(&window);
             let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, surface);
@@ -183,9 +182,6 @@ impl System {
                     }
                     WindowEvent::Destroyed => {
                         *control_flow = ControlFlow::Exit;
-                    }
-                    WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                        hidpi_factor = scale_factor;
                     }
                     WindowEvent::Resized(size) => {
                         pixels.resize(size.width, size.height);
@@ -284,9 +280,8 @@ impl System {
                 ProgramCounter::Next
             }
             (0x8, _, _, 0x5) => {
-                let calc = self.v[x].overflowing_sub(self.v[y]);
-                self.v[0xF] = calc.1 as u8;
-                self.v[x] = calc.0;
+                self.v[0xF] = (self.v[x] > self.v[y]) as u8;
+                self.v[x] = self.v[x].overflowing_sub(self.v[y]).0;
                 ProgramCounter::Next
             }
             (0x8, _, _, 0x6) => {
