@@ -2,7 +2,7 @@ name: ci
 on: [push, pull_request]
 jobs:
   build:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || !startsWith(github.event.pull_request.head.label, 'crowlkats:')
     runs-on: ${{ matrix.config.os }}
     name: ${{ matrix.config.os }} - ${{ matrix.config.type }}
     strategy:
