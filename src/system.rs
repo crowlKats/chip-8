@@ -194,13 +194,7 @@ impl System {
     }
 
     pub fn load_program(&mut self, data: &[u8]) {
-        for (i, &byte) in data.iter().enumerate() {
-            if (0x200 + i) < 0x1000 {
-                self.memory[0x200 + i] = byte;
-            } else {
-                break;
-            }
-        }
+        self.memory[0x200..(0x200 + data.len())].clone_from_slice(&data[..]);
     }
 
     fn execute_opcode(&mut self, opcode: u16) {
