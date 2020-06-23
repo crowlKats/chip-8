@@ -1,4 +1,4 @@
-use std::{thread, time};
+use std::time::{Duration, Instant};
 
 use pixels::{wgpu::Surface, Pixels, SurfaceTexture};
 use rand::Rng;
@@ -33,6 +33,8 @@ static FONTSET: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
+
+const TARGET_TIME_PER_UPDATE: Duration = Duration::from_nanos(16666670);
 
 enum ProgramCounter {
     Next,
@@ -105,27 +107,30 @@ impl System {
             let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, surface);
             Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap()
         };
-        let dur = time::Duration::from_millis(2);
+        let mut last_update = Instant::now();
         event_loop.run(move |event, _, control_flow| {
-            if !self.waiting_key {
-                self.execute_opcode(
-                    (self.memory[self.pc] as u16) << 8 | (self.memory[self.pc + 1] as u16),
-                );
-                if self.delay_timer > 0 {
-                    self.delay_timer -= 1;
-                }
-                if self.sound_timer > 0 {
-                    if self.sound_timer == 1 {
-                        println!("BEEP!");
-                    }
-                    self.sound_timer -= 1;
-                }
-            }
-
-            *control_flow = ControlFlow::Poll;
             match event {
                 Event::MainEventsCleared => {
-                    thread::sleep(dur);
+                    if last_update.elapsed() >= TARGET_TIME_PER_UPDATE {
+                        last_update = Instant::now();
+
+                        if !self.waiting_key {
+                            self.execute_opcode(
+                                (self.memory[self.pc] as u16) << 8
+                                    | (self.memory[self.pc + 1] as u16),
+                            );
+                            if self.delay_timer > 0 {
+                                self.delay_timer -= 1;
+                            }
+                            if self.sound_timer > 0 {
+                                if self.sound_timer == 1 {
+                                    println!("BEEP!");
+                                }
+                                self.sound_timer -= 1;
+                            }
+                        }
+                    }
+
                     window.request_redraw();
                 }
                 Event::RedrawRequested(_) => {
