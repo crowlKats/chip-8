@@ -2,6 +2,7 @@ name: ci
 on: [push, pull_request]
 jobs:
   build:
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.config.os }}
     strategy:
       matrix:
