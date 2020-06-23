@@ -74,6 +74,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         files: |
-          target/release/${{ env.REPOSITORY_NAME }}-x86_64-pc-windows-msvc.zip
-          target/release/${{ env.REPOSITORY_NAME }}-x86_64-unknown-linux-gnu.zip
-          target/release/${{ env.REPOSITORY_NAME }}-x86_64-apple-darwin.zip          
+          target/release/${{ env.REPOSITORY_NAME }}-${{ matrix.config.target }}.zip
