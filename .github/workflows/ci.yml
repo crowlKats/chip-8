@@ -4,7 +4,7 @@ jobs:
   build:
     if: github.event_name == 'push'
     runs-on: ${{ matrix.config.os }}
-    name: ${{ matrix.config.os }} ${{ matrix.config.type }}
+    name: ${{ matrix.config.os }} - ${{ matrix.config.type }}
     strategy:
       matrix:
         config:
@@ -66,6 +66,7 @@ jobs:
       if: startsWith(matrix.config.os, 'windows') && matrix.config.type == 'release'
       run: |
        Compress-Archive -CompressionLevel Optimal -Force -Path target/release/${Env:REPOSITORY_NAME}.exe -DestinationPath target/release/${Env:REPOSITORY_NAME}-${{ matrix.config.target }}.zip
+    
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.config.type == 'release'
