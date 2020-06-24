@@ -34,7 +34,8 @@ static FONTSET: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
-const TARGET_TIME_PER_UPDATE: Duration = Duration::from_nanos(16666670);
+const TARGET_TIME_PER_OP: Duration = Duration::from_millis(2);
+const TARGET_TIME_PER_REDRAW: Duration = Duration::from_nanos(16666670);
 
 enum ProgramCounter {
     Next,
@@ -92,10 +93,7 @@ impl System {
     pub fn run(mut self) {
         let event_loop = EventLoop::new();
         let window = {
-            let size = LogicalSize::new(
-                (SCALE_FACTOR * WIDTH) as f64,
-                (SCALE_FACTOR * HEIGHT) as f64,
-            );
+            let size = LogicalSize::new(SCALE_FACTOR * WIDTH, SCALE_FACTOR * HEIGHT);
             WindowBuilder::new()
                 .with_title(env!("CARGO_PKG_NAME"))
                 .with_inner_size(size)
@@ -107,12 +105,13 @@ impl System {
             let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, surface);
             Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap()
         };
-        let mut last_update = Instant::now();
+        let mut last_update_op = Instant::now();
+        let mut last_update_redraw = Instant::now();
         event_loop.run(move |event, _, control_flow| {
             match event {
                 Event::MainEventsCleared => {
-                    if last_update.elapsed() >= TARGET_TIME_PER_UPDATE {
-                        last_update = Instant::now();
+                    if last_update_op.elapsed() >= TARGET_TIME_PER_OP {
+                        last_update_op = Instant::now();
 
                         if !self.waiting_key {
                             self.execute_opcode(
@@ -131,7 +130,10 @@ impl System {
                         }
                     }
 
-                    window.request_redraw();
+                    if last_update_redraw.elapsed() >= TARGET_TIME_PER_REDRAW {
+                        last_update_redraw = Instant::now();
+                        window.request_redraw();
+                    }
                 }
                 Event::RedrawRequested(_) => {
                     for (i, pixel) in pixels.get_frame().chunks_exact_mut(4).enumerate() {
