@@ -34,8 +34,8 @@ static FONTSET: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
-const TARGET_TIME_PER_OP: Duration = Duration::from_millis(2);
-const TARGET_TIME_PER_REDRAW: Duration = Duration::from_nanos(16666670);
+const TARGET_TIME_AT_500: Duration = Duration::from_millis(2);
+const TARGET_TIME_AT_60: Duration = Duration::from_nanos(16666670);
 
 enum ProgramCounter {
     Next,
@@ -110,7 +110,7 @@ impl System {
         event_loop.run(move |event, _, control_flow| {
             match event {
                 Event::MainEventsCleared => {
-                    if last_update_op.elapsed() >= TARGET_TIME_PER_OP {
+                    if last_update_op.elapsed() >= TARGET_TIME_AT_500 {
                         last_update_op = Instant::now();
 
                         if !self.waiting_key {
@@ -118,20 +118,22 @@ impl System {
                                 (self.memory[self.pc] as u16) << 8
                                     | (self.memory[self.pc + 1] as u16),
                             );
-                            if self.delay_timer > 0 {
-                                self.delay_timer -= 1;
-                            }
-                            if self.sound_timer > 0 {
-                                if self.sound_timer == 1 {
-                                    println!("BEEP!");
-                                }
-                                self.sound_timer -= 1;
-                            }
                         }
                     }
 
-                    if last_update_redraw.elapsed() >= TARGET_TIME_PER_REDRAW {
+                    if last_update_redraw.elapsed() >= TARGET_TIME_AT_60 {
                         last_update_redraw = Instant::now();
+
+                        if self.delay_timer > 0 {
+                            self.delay_timer -= 1;
+                        }
+                        if self.sound_timer > 0 {
+                            if self.sound_timer == 1 {
+                                println!("BEEP!");
+                            }
+                            self.sound_timer -= 1;
+                        }
+
                         window.request_redraw();
                     }
                 }
