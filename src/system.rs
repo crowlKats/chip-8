@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use pixels::{wgpu::Surface, Pixels, SurfaceTexture};
+use pixels::{Pixels, SurfaceTexture};
 use rand::Rng;
 use winit::{
     dpi::LogicalSize,
@@ -74,7 +74,7 @@ impl System {
             waiting_key: false,
         };
 
-        system.memory[..FONTSET.len()].clone_from_slice(&FONTSET[..]);
+        system.memory[..FONTSET.len()].copy_from_slice(&FONTSET[..]);
 
         system
     }
@@ -93,16 +93,18 @@ impl System {
     pub fn run(mut self) {
         let event_loop = EventLoop::new();
         let window = {
-            let size = LogicalSize::new(SCALE_FACTOR * WIDTH, SCALE_FACTOR * HEIGHT);
             WindowBuilder::new()
                 .with_title(env!("CARGO_PKG_NAME"))
-                .with_inner_size(size)
+                .with_inner_size(LogicalSize::new(
+                    WIDTH * SCALE_FACTOR,
+                    HEIGHT * SCALE_FACTOR,
+                ))
                 .build(&event_loop)
                 .unwrap()
         };
         let mut pixels = {
-            let surface = Surface::create(&window);
-            let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, surface);
+            let surface_texture =
+                SurfaceTexture::new(WIDTH * SCALE_FACTOR, HEIGHT * SCALE_FACTOR, &window);
             Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap()
         };
         let mut last_update_op = Instant::now();
@@ -153,7 +155,7 @@ impl System {
 
                     if pixels
                         .render()
-                        .map_err(|e| eprintln!("pixels.render() failed: {}", e))
+                        .map_err(|e| eprintln!("pixels.render() failed: {:?}", e))
                         .is_err()
                     {
                         *control_flow = ControlFlow::Exit;
