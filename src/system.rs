@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use pixels::{Pixels, SurfaceTexture};
+use bytemuck::{Pod, Zeroable};
 use rand::Rng;
 use winit::{
   dpi::LogicalSize,
@@ -11,9 +11,17 @@ use winit::{
 
 use crate::display;
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct Vertex {
+  _pos: [f32; 2],
+}
+
 const SCALE_FACTOR: u32 = 10;
 const WIDTH: u32 = 64;
 const HEIGHT: u32 = 32;
+const WIDTH_FACTORED: u32 = WIDTH * SCALE_FACTOR;
+const HEIGHT_FACTORED: u32 = HEIGHT * SCALE_FACTOR;
 
 static FONTSET: [u8; 80] = [
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -90,39 +98,136 @@ impl System {
     }
   }
 
-  pub fn run(mut self) {
+  pub fn run(mut self) -> Result<(), anyhow::Error> {
     let event_loop = EventLoop::new();
-    let window = {
-      WindowBuilder::new()
-        .with_title(env!("CARGO_PKG_NAME"))
-        .with_inner_size(LogicalSize::new(
-          WIDTH * SCALE_FACTOR,
-          HEIGHT * SCALE_FACTOR,
-        ))
-        .build(&event_loop)
-        .unwrap()
+    let window = WindowBuilder::new()
+      .with_title(env!("CARGO_PKG_NAME"))
+      .with_inner_size(LogicalSize::new(WIDTH_FACTORED, HEIGHT_FACTORED))
+      .build(&event_loop)?;
+
+    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+    let surface = unsafe { instance.create_surface(&window) };
+    let adapter = futures::executor::block_on(instance.request_adapter(
+      &wgpu::RequestAdapterOptions {
+        power_preference: Default::default(),
+        compatible_surface: Some(&surface),
+      },
+    ))
+    .unwrap();
+    let (device, queue) = futures::executor::block_on(adapter.request_device(
+      &wgpu::DeviceDescriptor {
+        features: Default::default(),
+        limits: Default::default(),
+        shader_validation: false,
+      },
+      None,
+    ))?;
+
+    let vert_shader_module =
+      device.create_shader_module(wgpu::include_spirv!("./shaders/vert.spv"));
+    let frag_shader_module =
+      device.create_shader_module(wgpu::include_spirv!("./shaders/frag.spv"));
+
+    let storage_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+      label: None,
+      size: 8 * 32,
+      usage: wgpu::BufferUsage::STORAGE | wgpu::BufferUsage::COPY_DST,
+      mapped_at_creation: false,
+    });
+
+    let bind_group_layout =
+      device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[wgpu::BindGroupLayoutEntry {
+          binding: 0,
+          visibility: wgpu::ShaderStage::NONE,
+          ty: wgpu::BindingType::StorageBuffer {
+            dynamic: false,
+            min_binding_size: None,
+            readonly: true,
+          },
+          count: None,
+        }],
+      });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+      label: None,
+      layout: &bind_group_layout,
+      entries: &[wgpu::BindGroupEntry {
+        binding: 0,
+        resource: wgpu::BindingResource::Buffer(storage_buffer.slice(..)),
+      }],
+    });
+
+    let pipeline_layout =
+      device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: None,
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[],
+      });
+    let render_pipeline =
+      device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(&pipeline_layout),
+        vertex_stage: wgpu::ProgrammableStageDescriptor {
+          module: &vert_shader_module,
+          entry_point: "main",
+        },
+        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+          module: &frag_shader_module,
+          entry_point: "main",
+        }),
+        rasterization_state: None,
+        primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+        color_states: &[wgpu::TextureFormat::Bgra8Unorm.into()],
+        depth_stencil_state: None,
+        vertex_state: wgpu::VertexStateDescriptor {
+          index_format: wgpu::IndexFormat::Uint16,
+          vertex_buffers: &[wgpu::VertexBufferDescriptor {
+            stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![0 => Float2],
+          }],
+        },
+        sample_count: 1,
+        sample_mask: !0,
+        alpha_to_coverage_enabled: false,
+      });
+
+    let mut swap_chain_descriptor = wgpu::SwapChainDescriptor {
+      usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+      format: wgpu::TextureFormat::Bgra8Unorm,
+      width: WIDTH_FACTORED,
+      height: HEIGHT_FACTORED,
+      present_mode: wgpu::PresentMode::Fifo,
     };
-    let mut pixels = {
-      let surface_texture = SurfaceTexture::new(
-        WIDTH * SCALE_FACTOR,
-        HEIGHT * SCALE_FACTOR,
-        &window,
-      );
-      Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap()
-    };
+    let mut swap_chain =
+      device.create_swap_chain(&surface, &swap_chain_descriptor);
+
     let mut last_update_op = Instant::now();
     let mut last_update_redraw = Instant::now();
     event_loop.run(move |event, _, control_flow| {
+      let _ = (
+        &instance,
+        &adapter,
+        &vert_shader_module,
+        &frag_shader_module,
+        &bind_group,
+        &pipeline_layout,
+      );
+
       match event {
         Event::MainEventsCleared => {
           if last_update_op.elapsed() >= TARGET_TIME_AT_500 {
             last_update_op = Instant::now();
 
             if !self.waiting_key {
-              self.execute_opcode(
-                (self.memory[self.pc] as u16) << 8
-                  | (self.memory[self.pc + 1] as u16),
-              );
+              self
+                .execute_opcode(
+                  (self.memory[self.pc] as u16) << 8
+                    | (self.memory[self.pc + 1] as u16),
+                )
+                .unwrap();
             }
           }
 
@@ -143,27 +248,57 @@ impl System {
           }
         }
         Event::RedrawRequested(_) => {
-          for (i, pixel) in pixels.get_frame().chunks_exact_mut(4).enumerate() {
-            let y = i / WIDTH as usize;
-            let x = i % WIDTH as usize;
+          let bit_data = {
+            let flat =
+              self.display.arr.iter().flatten().collect::<Vec<&bool>>();
 
-            let rgba = if self.display.arr[y][x] {
-              [0xFF, 0xFF, 0xFF, 0xFF]
-            } else {
-              [0x00, 0x00, 0x00, 0xFF]
-            };
+            let mut res = [0u64; 32];
+            for (index, states) in flat.chunks(64).enumerate() {
+              let mut num = res[index];
+              for state in states {
+                num <<= 1;
+                if **state {
+                  num |= 0b1;
+                }
+              }
+              res[index] = num;
+            }
 
-            pixel.copy_from_slice(&rgba);
-          }
+            res
+          };
 
-          if pixels
-            .render()
-            .map_err(|e| eprintln!("pixels.render() failed: {:?}", e))
-            .is_err()
+          let data = unsafe { bit_data.align_to::<u8>().1 };
+
+          let frame = swap_chain.get_current_frame().unwrap();
+          let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+              label: None,
+            });
+
+          queue.write_buffer(&storage_buffer, 0, data);
+
           {
-            *control_flow = ControlFlow::Exit;
-            return;
+            let mut render_pass =
+              encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[
+                  wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &frame.output.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                      load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                      store: true,
+                    },
+                  },
+                ],
+                depth_stencil_attachment: None,
+              });
+
+            render_pass.set_pipeline(&render_pipeline);
+            render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
           }
+
+          queue.submit(Some(encoder.finish()));
         }
         Event::WindowEvent { event, .. } => match event {
           WindowEvent::KeyboardInput { input, .. } => {
@@ -198,20 +333,23 @@ impl System {
             *control_flow = ControlFlow::Exit;
           }
           WindowEvent::Resized(size) => {
-            pixels.resize(size.width, size.height);
+            swap_chain_descriptor.width = size.width;
+            swap_chain_descriptor.height = size.height;
+            swap_chain =
+              device.create_swap_chain(&surface, &swap_chain_descriptor);
           }
           _ => {}
         },
         _ => {}
       };
-    });
+    })
   }
 
   pub fn load_program(&mut self, data: &[u8]) {
     self.memory[0x200..(0x200 + data.len())].clone_from_slice(&data[..]);
   }
 
-  fn execute_opcode(&mut self, opcode: u16) {
+  fn execute_opcode(&mut self, opcode: u16) -> Result<(), anyhow::Error> {
     let (a, x, y, n) = (
       0xf & opcode >> 12,
       self.get_x(opcode),
@@ -389,7 +527,7 @@ impl System {
         }
         ProgramCounter::Next
       }
-      _ => panic!("Op not implemented: {:X}", opcode),
+      _ => anyhow::bail!("Op not implemented: {:X}", opcode),
     };
 
     match pc {
@@ -398,6 +536,8 @@ impl System {
       ProgramCounter::Jump(addr) => self.pc = addr as usize,
       ProgramCounter::None => {}
     };
+
+    Ok(())
   }
 
   fn get_x(&self, opcode: u16) -> usize {

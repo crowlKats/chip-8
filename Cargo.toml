@@ -7,5 +7,9 @@ edition = "2018"
 [dependencies]
 rand = "0.7.3"
 winit = "0.23.0"
-pixels = "0.2.0"
+wgpu = "0.6.0"
 clap = "3.0.0-beta.2"
+futures = "0.3.6"
+anyhow = "1.0.33"
+wgpu-subscriber = "0.1"
+bytemuck = { version = "1.4.1", features = ["derive"] }

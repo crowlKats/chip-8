@@ -1,16 +1,12 @@
-use std::fs::read;
-
-use clap::{App, Arg};
-
 mod display;
 mod system;
 
-fn main() {
-  let matches = App::new(env!("CARGO_PKG_NAME"))
+fn main() -> Result<(), anyhow::Error> {
+  let matches = clap::App::new(env!("CARGO_PKG_NAME"))
     .about("A CHIP-8 emulator")
     .version(env!("CARGO_PKG_VERSION"))
     .arg(
-      Arg::new("file")
+      clap::Arg::new("file")
         .value_name("file")
         .about("the file to run")
         .required(true)
@@ -19,7 +15,8 @@ fn main() {
     .get_matches();
 
   let mut sys = system::System::new();
-  let bytes = read(matches.value_of("file").unwrap()).unwrap();
+  let bytes = std::fs::read(matches.value_of("file").unwrap())?;
   sys.load_program(&bytes);
-  sys.run();
+
+  sys.run()
 }
