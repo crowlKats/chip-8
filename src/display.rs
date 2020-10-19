@@ -1,11 +1,11 @@
 pub struct Display {
-  pub arr: [[bool; 64]; 32],
+  pub states: [[bool; 64]; 32],
 }
 
 impl Display {
   pub fn new() -> Display {
     Display {
-      arr: [[false; 64]; 32],
+      states: [[false; 64]; 32],
     }
   }
 
@@ -18,11 +18,11 @@ impl Display {
         let x = (x + j) % 64;
 
         if ((data >> (7 - j as u8)) & 1) == 1 {
-          if self.arr[y][x] {
+          if self.states[y][x] {
             unset = true;
           }
 
-          self.arr[y][x] ^= true;
+          self.states[y][x] ^= true;
         }
       }
     }
@@ -31,6 +31,6 @@ impl Display {
   }
 
   pub fn clear(&mut self) {
-    self.arr = [[false; 64]; 32];
+    self.states = [[false; 64]; 32];
   }
 }

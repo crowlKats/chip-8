@@ -118,7 +118,7 @@ impl System {
       &wgpu::DeviceDescriptor {
         features: Default::default(),
         limits: Default::default(),
-        shader_validation: false,
+        shader_validation: true,
       },
       None,
     ))?;
@@ -249,15 +249,13 @@ impl System {
         }
         Event::RedrawRequested(_) => {
           let bit_data = {
-            let flat =
-              self.display.arr.iter().flatten().collect::<Vec<&bool>>();
-
             let mut res = [0u64; 32];
-            for (index, states) in flat.chunks(64).enumerate() {
+
+            for (index, states) in self.display.states.iter().enumerate() {
               let mut num = res[index];
               for state in states {
                 num <<= 1;
-                if **state {
+                if *state {
                   num |= 0b1;
                 }
               }
@@ -295,7 +293,7 @@ impl System {
 
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
+            render_pass.draw(0..6, 0..1);
           }
 
           queue.submit(Some(encoder.finish()));
