@@ -140,7 +140,7 @@ impl System {
         label: None,
         entries: &[wgpu::BindGroupLayoutEntry {
           binding: 0,
-          visibility: wgpu::ShaderStage::NONE,
+          visibility: wgpu::ShaderStage::FRAGMENT,
           ty: wgpu::BindingType::StorageBuffer {
             dynamic: false,
             min_binding_size: None,
