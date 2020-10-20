@@ -25,7 +25,7 @@ void main(){
   clamp(integer_pos.y, 0, raster_size.y - 1)
   );
 
-  uint a=vertices[pos.y * 2 + (1 - pos.x / 32)];
-  uint b=(a >> (31 - pos.x % 32)) & 1;
-  outColor=vec4(vec3(1, 1, 1) * b, 1.);
+  uint a = vertices[pos.y * 2 + (1 - pos.x / 32)];
+  uint b = (a >> (31 - pos.x % 32)) & 1;
+  outColor = vec4(vec3(1, 1, 1) * b, 1.);
 }

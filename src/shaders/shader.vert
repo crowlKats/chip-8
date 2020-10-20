@@ -17,6 +17,6 @@ layout (location = 0) out vec2 triangle_pos;
 
 void main() {
   vec2 position = quadVertices[gl_VertexIndex];
-  triangle_pos=vec2(position.x, 1-position.y);
+  triangle_pos = vec2(position.x, 1-position.y);
   gl_Position = vec4(position * 2 - 1, 0., 1.);
 }
