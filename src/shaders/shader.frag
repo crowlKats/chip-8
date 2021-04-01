@@ -14,13 +14,13 @@ vec3(1, 1, 1),
 
 const ivec2 raster_size = ivec2(64, 32);
 
-void main(){
+void main() {
   vec2 raster_size_float = raster_size;
   vec2 scaled_pos = quad_pos * raster_size_float;
   vec2 floored_pos = floor(scaled_pos);
   uvec2 integer_pos = uvec2(floored_pos);
 
-  uvec2 pos=uvec2(
+  uvec2 pos = uvec2(
   clamp(integer_pos.x, 0, raster_size.x - 1),
   clamp(integer_pos.y, 0, raster_size.y - 1)
   );

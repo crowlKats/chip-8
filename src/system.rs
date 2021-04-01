@@ -116,17 +116,17 @@ impl System {
     .unwrap();
     let (device, queue) = futures::executor::block_on(adapter.request_device(
       &wgpu::DeviceDescriptor {
+        label: None,
         features: Default::default(),
         limits: Default::default(),
-        shader_validation: true,
       },
       None,
     ))?;
 
     let vert_shader_module =
-      device.create_shader_module(wgpu::include_spirv!("./shaders/vert.spv"));
+      device.create_shader_module(&wgpu::include_spirv!("./shaders/vert.spv"));
     let frag_shader_module =
-      device.create_shader_module(wgpu::include_spirv!("./shaders/frag.spv"));
+      device.create_shader_module(&wgpu::include_spirv!("./shaders/frag.spv"));
 
     let storage_buffer = device.create_buffer(&wgpu::BufferDescriptor {
       label: None,
@@ -141,10 +141,10 @@ impl System {
         entries: &[wgpu::BindGroupLayoutEntry {
           binding: 0,
           visibility: wgpu::ShaderStage::FRAGMENT,
-          ty: wgpu::BindingType::StorageBuffer {
-            dynamic: false,
+          ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Storage { read_only: true },
             min_binding_size: None,
-            readonly: true,
+            has_dynamic_offset: false,
           },
           count: None,
         }],
@@ -155,7 +155,7 @@ impl System {
       layout: &bind_group_layout,
       entries: &[wgpu::BindGroupEntry {
         binding: 0,
-        resource: wgpu::BindingResource::Buffer(storage_buffer.slice(..)),
+        resource: storage_buffer.as_entire_binding(),
       }],
     });
 
@@ -169,29 +169,23 @@ impl System {
       device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: None,
         layout: Some(&pipeline_layout),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
+        vertex: wgpu::VertexState {
           module: &vert_shader_module,
           entry_point: "main",
+          buffers: &[],
         },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+        primitive: Default::default(),
+        depth_stencil: None,
+        multisample: Default::default(),
+        fragment: Some(wgpu::FragmentState {
           module: &frag_shader_module,
           entry_point: "main",
+          targets: &[wgpu::TextureFormat::Bgra8Unorm.into()],
         }),
-        rasterization_state: None,
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-        color_states: &[wgpu::TextureFormat::Bgra8Unorm.into()],
-        depth_stencil_state: None,
-        vertex_state: wgpu::VertexStateDescriptor {
-          index_format: wgpu::IndexFormat::Uint16,
-          vertex_buffers: &[],
-        },
-        sample_count: 1,
-        sample_mask: !0,
-        alpha_to_coverage_enabled: false,
       });
 
     let mut swap_chain_descriptor = wgpu::SwapChainDescriptor {
-      usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+      usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
       format: wgpu::TextureFormat::Bgra8Unorm,
       width: WIDTH_FACTORED,
       height: HEIGHT_FACTORED,
@@ -274,6 +268,7 @@ impl System {
           {
             let mut render_pass =
               encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[
                   wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.output.view,
