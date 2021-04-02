@@ -22,55 +22,44 @@ jobs:
             type: release
           - os: ubuntu-latest
             type: lint
-        
-    steps:
-    - name: Get repository name
-      shell: bash
-      run: echo ::set-env name=REPOSITORY_NAME::${GITHUB_REPOSITORY##*/}
-      
-    - name: Clone repository
-      uses: actions/checkout@master
-      with:
-        fetch-depth: 5
-        submodules: true
-    - name: Install rust
-      uses: hecrj/setup-rust-action@v1
-    - name: Configure cargo data directory
-      run: echo "::set-env name=CARGO_HOME::$(pwd)/.cargo_home"
-    - name: Cache
-      uses: actions/cache@v2
-      with:
-        path: |-
-          .cargo_home
-          target/*/.*
-          target/*/build
-          target/*/deps
-        key: ${{ matrix.config.os }}-${{ matrix.config.type }}-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ matrix.config.os }}-${{ matrix.config.type }}-
-          
-    - name: Check fmt
-      if: matrix.config.type == 'lint'
-      run: cargo fmt -- --check
-    - name: Check lint
-      if: matrix.config.type == 'lint'
-      run: cargo clippy --release --all-targets --locked  -- -D clippy::all
 
-                    
-    - name: Build release
-      run: cargo build --release --locked --all-targets
-    - name: Pre-release (unix)
-      if: (startsWith(matrix.config.os, 'ubuntu') || startsWith(matrix.config.os, 'macOS')) && matrix.config.type == 'release'
-      run: |
-        cd target/release
-        zip -r $REPOSITORY_NAME-${{ matrix.config.target }}.zip $REPOSITORY_NAME
-    - name: Pre-release (windows)
-      if: startsWith(matrix.config.os, 'windows') && matrix.config.type == 'release'
-      run: Compress-Archive -CompressionLevel Optimal -Force -Path target/release/${Env:REPOSITORY_NAME}.exe -DestinationPath target/release/${Env:REPOSITORY_NAME}-${{ matrix.config.target }}.zip
-    
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/') && matrix.config.type == 'release'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        files: target/release/${{ env.REPOSITORY_NAME }}-${{ matrix.config.target }}.zip
+    steps:
+      - name: Get repository name
+        shell: bash
+        run: echo ::set-env name=REPOSITORY_NAME::${GITHUB_REPOSITORY##*/}
+
+      - name: Clone repository
+        uses: actions/checkout@master
+        with:
+          fetch-depth: 5
+          submodules: true
+      - name: Install rust
+        uses: hecrj/setup-rust-action@v1
+      - name: Configure cargo data directory
+        run: echo "::set-env name=CARGO_HOME::$(pwd)/.cargo_home"
+
+      - name: Check fmt
+        if: matrix.config.type == 'lint'
+        run: cargo fmt -- --check
+      - name: Check lint
+        if: matrix.config.type == 'lint'
+        run: cargo clippy --release --all-targets --locked  -- -D clippy::all
+
+      - name: Build release
+        run: cargo build --release --locked --all-targets
+      - name: Pre-release (unix)
+        if: (startsWith(matrix.config.os, 'ubuntu') || startsWith(matrix.config.os, 'macOS')) && matrix.config.type == 'release'
+        run: |
+          cd target/release
+          zip -r $REPOSITORY_NAME-${{ matrix.config.target }}.zip $REPOSITORY_NAME
+      - name: Pre-release (windows)
+        if: startsWith(matrix.config.os, 'windows') && matrix.config.type == 'release'
+        run: Compress-Archive -CompressionLevel Optimal -Force -Path target/release/${Env:REPOSITORY_NAME}.exe -DestinationPath target/release/${Env:REPOSITORY_NAME}-${{ matrix.config.target }}.zip
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/') && matrix.config.type == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: target/release/${{ env.REPOSITORY_NAME }}-${{ matrix.config.target }}.zip

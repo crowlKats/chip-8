@@ -318,10 +318,10 @@ impl System {
               _ => {}
             }
             if input.scancode == 6 {
-              self.keypad_event(0xA, is_pressed)
+              self.keypad_event(0xA, is_pressed);
             }
           }
-          WindowEvent::Destroyed => {
+          WindowEvent::Destroyed | WindowEvent::CloseRequested => {
             *control_flow = ControlFlow::Exit;
           }
           WindowEvent::Resized(size) => {
