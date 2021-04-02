@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use bytemuck::{Pod, Zeroable};
 use rand::Rng;
 use winit::{
   dpi::LogicalSize,
@@ -10,12 +9,6 @@ use winit::{
 };
 
 use crate::display;
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Vertex {
-  _pos: [f32; 2],
-}
 
 const SCALE_FACTOR: u32 = 10;
 const WIDTH: u32 = 64;
@@ -123,10 +116,21 @@ impl System {
       None,
     ))?;
 
-    let vert_shader_module =
-      device.create_shader_module(&wgpu::include_spirv!("./shaders/vert.spv"));
-    let frag_shader_module =
-      device.create_shader_module(&wgpu::include_spirv!("./shaders/frag.spv"));
+    let mut flags = wgpu::ShaderFlags::VALIDATION;
+    match adapter.get_info().backend {
+      wgpu::Backend::Metal | wgpu::Backend::Vulkan | wgpu::Backend::Gl => {
+        flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
+      }
+      _ => (), //TODO
+    }
+    let shader_module =
+      device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+        label: None,
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+          include_str!("./shader.wgsl"),
+        )),
+        flags,
+      });
 
     let storage_buffer = device.create_buffer(&wgpu::BufferDescriptor {
       label: None,
@@ -170,16 +174,16 @@ impl System {
         label: None,
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
-          module: &vert_shader_module,
-          entry_point: "main",
+          module: &shader_module,
+          entry_point: "vs_main",
           buffers: &[],
         },
         primitive: Default::default(),
         depth_stencil: None,
         multisample: Default::default(),
         fragment: Some(wgpu::FragmentState {
-          module: &frag_shader_module,
-          entry_point: "main",
+          module: &shader_module,
+          entry_point: "fs_main",
           targets: &[wgpu::TextureFormat::Bgra8Unorm.into()],
         }),
       });
@@ -200,8 +204,7 @@ impl System {
       let _ = (
         &instance,
         &adapter,
-        &vert_shader_module,
-        &frag_shader_module,
+        &shader_module,
         &bind_group,
         &pipeline_layout,
       );
@@ -255,30 +258,30 @@ impl System {
             res
           };
 
-          let data = unsafe { bit_data.align_to::<u8>().1 };
-
           let frame = swap_chain.get_current_frame().unwrap();
           let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
               label: None,
             });
 
-          queue.write_buffer(&storage_buffer, 0, data);
+          queue.write_buffer(
+            &storage_buffer,
+            0,
+            bytemuck::cast_slice(&bit_data),
+          );
 
           {
             let mut render_pass =
               encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[
-                  wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.output.view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                      load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                      store: true,
-                    },
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                  view: &frame.output.view,
+                  resolve_target: None,
+                  ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
                   },
-                ],
+                }],
                 depth_stencil_attachment: None,
               });
 
@@ -335,7 +338,7 @@ impl System {
   }
 
   pub fn load_program(&mut self, data: &[u8]) {
-    self.memory[0x200..(0x200 + data.len())].clone_from_slice(&data[..]);
+    self.memory[0x200..(0x200 + data.len())].copy_from_slice(data);
   }
 
   fn execute_opcode(&mut self, opcode: u16) -> Result<(), anyhow::Error> {
@@ -425,9 +428,8 @@ impl System {
         ProgramCounter::Next
       }
       (0x8, _, _, 0x7) => {
-        let calc = self.v[y].overflowing_sub(self.v[x]);
-        self.v[0xF] = calc.1 as u8;
-        self.v[x] = calc.0;
+        self.v[0x0f] = (self.v[y] > self.v[x]) as u8;
+        self.v[x] = self.v[y].wrapping_sub(self.v[x]);
         ProgramCounter::Next
       }
       (0x8, _, _, 0xE) => {

@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 rand = "0.8.3"
 winit = "0.24.0"
-wgpu = "0.7.1"
+wgpu = { git = "https://github.com/gfx-rs/wgpu-rs" }
 clap = "3.0.0-beta.2"
 futures = "0.3.13"
 anyhow = "1.0.40"
